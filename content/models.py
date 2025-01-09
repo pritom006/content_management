@@ -62,6 +62,10 @@ class Content(models.Model):
     class Meta:
         db_table = 'content'
 
+
+    def __str__(self):
+        return self.title
+
     @property
     def is_editable(self):
         return self.status != 'APPROVED'
