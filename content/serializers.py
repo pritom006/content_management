@@ -11,6 +11,29 @@ class UserSerializer(serializers.ModelSerializer):
         read_only_fields = ('role',)
 
 
+# class SignupSerializer(serializers.ModelSerializer):
+#     password = serializers.CharField(write_only=True, required=True)
+#     role = serializers.ChoiceField(choices=User.ROLE_CHOICES, required=True)
+
+#     class Meta:
+#         model = User
+#         fields = ('username', 'email', 'password', 'first_name', 'last_name', 'role')
+#         extra_kwargs = {
+#             'email': {'required': True}
+#         }
+
+#     def validate(self, attrs):
+
+#         # Only SUPERADMIN can create MANAGER accounts
+#         request = self.context.get('request')
+    
+#             # For unauthenticated signups, only allow CONTENT_WRITER role
+#         attrs['role'] = 'CONTENT_WRITER'
+                
+#         attrs["password"] = make_password(attrs["password"])
+#         return attrs
+
+
 class SignupSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, required=True)
     password2 = serializers.CharField(write_only=True, required=True)
@@ -39,21 +62,29 @@ class SignupSerializer(serializers.ModelSerializer):
                     "role": "SUPERADMIN role cannot be assigned during signup"
                 })
         else:
-            # For unauthenticated signups, only allow CONTENT_WRITER role
             if attrs['role'] != 'CONTENT_WRITER':
                 raise serializers.ValidationError({
                     "role": "New users can only sign up as Content Writers"
                 })
-        
+        del  attrs['password2']
         return attrs
 
+    # def create(self, validated_data):
+    #     validated_data["password"] = make_password(validated_data["password"])
+    #     print("password==>", validated_data["password"])
+    #     return validated_data
+     
+
     def create(self, validated_data):
-        validated_data.pop('password2')
-        password = validated_data.pop('password')
-        user = User(**validated_data)
-        user.password = make_password(password)
-        user.save()
-        return user
+        password = validated_data.pop('password', None)
+        instance = self.Meta.model(**validated_data)
+        
+        instance.is_active = True
+        if password is not None:
+            # Set password does the hash, so you don't need to call make_password 
+            instance.set_password(password)
+        instance.save()
+        return instance
 
 class LoginSerializer(serializers.ModelSerializer):
     username = serializers.CharField(required=True)
@@ -70,21 +101,24 @@ class LoginSerializer(serializers.ModelSerializer):
         if username and password:
             try:
                 user = User.objects.get(username=username)
-                if user.check_password(password):
-                    if not user.is_active:
-                        raise serializers.ValidationError({
-                            'error': 'Account is disabled.'
-                        })
-                    attrs['user'] = user
-                    return attrs
-                else:
-                    raise serializers.ValidationError({
-                        'error': 'Incorrect password.'
-                    })
             except User.DoesNotExist:
                 raise serializers.ValidationError({
                     'error': 'User does not exist.'
                 })
+            
+            if not user.check_password(password):
+                raise serializers.ValidationError({
+                    'error': 'Incorrect password.'
+                })
+                
+            if not user.is_active:
+                raise serializers.ValidationError({
+                    'error': 'Account is disabled.'
+                })
+                
+            attrs['user'] = user
+            return attrs
+
         raise serializers.ValidationError({
             'error': 'Must include username and password.'
         })
@@ -92,30 +126,60 @@ class LoginSerializer(serializers.ModelSerializer):
 
 
 
+# class ContentSerializer(serializers.ModelSerializer):
+#     feedbacks = serializers.SerializerMethodField()
+    
+#     class Meta:
+#         model = Content
+#         fields = ['id', 'title', 'content', 'status', 'created_at', 'updated_at', 
+#                  'created_by', 'last_modified_by', 'feedbacks']
+#         read_only_fields = ['created_by', 'last_modified_by', 'status']
+
+#     def get_feedbacks(self, obj):
+#         return FeedbackSerializer(obj.feedbacks.all(), many=True).data
+
+#     def create(self, validated_data):
+#         user = self.context['request'].user
+#         validated_data['created_by'] = user
+#         validated_data['last_modified_by'] = user
+#         return super().create(validated_data)
+
+#     def update(self, instance, validated_data):
+#         validated_data['last_modified_by'] = self.context['request'].user
+#         return super().update(instance, validated_data)
+
 
 class ContentSerializer(serializers.ModelSerializer):
     feedbacks = serializers.SerializerMethodField()
     
     class Meta:
         model = Content
-        fields = ['id', 'title', 'content', 'status', 'created_at', 'updated_at', 
-                 'created_by', 'last_modified_by', 'feedbacks']
-        read_only_fields = ['created_by', 'last_modified_by', 'status']
+        fields = ['id', 'title', 'content', 'status', 'created_at', 'updated_at', 'feedbacks']
+        #read_only_fields = ['created_by', 'last_modified_by', 'status']
 
     def get_feedbacks(self, obj):
         return FeedbackSerializer(obj.feedbacks.all(), many=True).data
 
     def create(self, validated_data):
-        user = self.context['request'].user
-        validated_data['created_by'] = user
-        validated_data['last_modified_by'] = user
+        # Handle cases where user might not be available
+        validated_data['created_by'] = None
+        validated_data['last_modified_by'] = None
         return super().create(validated_data)
 
     def update(self, instance, validated_data):
-        validated_data['last_modified_by'] = self.context['request'].user
+        validated_data['last_modified_by'] = None
         return super().update(instance, validated_data)
 
 
+# class FeedbackSerializer(serializers.ModelSerializer):
+#     class Meta:
+#         model = Feedback
+#         fields = ['id', 'content', 'user', 'comment', 'created_at']
+#         read_only_fields = ['user', 'created_at']
+
+#     def create(self, validated_data):
+#         validated_data['user'] = self.context['request'].user
+#         return super().create(validated_data)
 
 class FeedbackSerializer(serializers.ModelSerializer):
     class Meta:
@@ -124,6 +188,28 @@ class FeedbackSerializer(serializers.ModelSerializer):
         read_only_fields = ['user', 'created_at']
 
     def create(self, validated_data):
-        validated_data['user'] = self.context['request'].user
+        # Handle cases where user might not be available
+        validated_data['user'] = None
         return super().create(validated_data)
 
+
+class TaskSerializer(serializers.ModelSerializer):
+    content = ContentSerializer(read_only=True)
+    content_id = serializers.PrimaryKeyRelatedField(
+        queryset=Content.objects.all(),
+        source='content',
+        write_only=True
+    )
+    assigned_to_name = serializers.CharField(source='assigned_to.username', read_only=True)
+    assigned_by_name = serializers.CharField(source='assigned_by.username', read_only=True)
+
+    class Meta:
+        model = Task
+        fields = ('id', 'content', 'content_id', 'assigned_to', 'assigned_to_name',
+                 'assigned_by', 'assigned_by_name', 'assigned_at')
+        read_only_fields = ('assigned_by',)
+
+    def create(self, validated_data):
+        # Handle cases where user might not be available
+        validated_data['assigned_by'] = None
+        return super().create(validated_data)

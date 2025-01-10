@@ -51,12 +51,18 @@ class Content(models.Model):
     created_by = models.ForeignKey(
         User, 
         on_delete=models.CASCADE, 
-        related_name='created_content'
+        related_name='created_content',
+        null = True,
+        blank=True
+
     )
     last_modified_by = models.ForeignKey(
         User, 
         on_delete=models.CASCADE, 
-        related_name='modified_content'
+        related_name='modified_content',
+        null=True,
+        blank=True
+
     )
 
     class Meta:
@@ -80,15 +86,15 @@ class Content(models.Model):
 
 class Task(models.Model):
     content = models.OneToOneField(Content, on_delete=models.CASCADE, related_name='task')
-    assigned_to = models.ForeignKey(User, on_delete=models.CASCADE, related_name='assigned_tasks')
-    assigned_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='created_tasks')
+    assigned_to = models.ForeignKey(User, on_delete=models.CASCADE, related_name='assigned_tasks', null=True, blank=True)
+    assigned_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='created_tasks', null=True, blank=True)
     assigned_at = models.DateTimeField(auto_now_add=True)
 
-    def clean(self):
-        if self.assigned_to.role != 'CONTENT_WRITER':
-            raise ValidationError("Tasks can only be assigned to content writers")
-        if self.assigned_by.role not in ['SUPERADMIN', 'MANAGER']:
-            raise ValidationError("Only managers and super admins can assign tasks")
+    # def clean(self):
+    #     if self.assigned_to.role != 'CONTENT_WRITER':
+    #         raise ValidationError("Tasks can only be assigned to content writers")
+    #     if self.assigned_by.role not in ['SUPERADMIN', 'MANAGER']:
+    #         raise ValidationError("Only managers and super admins can assign tasks")
 
     def save(self, *args, **kwargs):
         self.full_clean()
@@ -99,13 +105,13 @@ class Task(models.Model):
 
 class Feedback(models.Model):
     content = models.ForeignKey(Content, on_delete=models.CASCADE, related_name='feedbacks')
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
     comment = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
 
-    def clean(self):
-        if self.user.role not in ['SUPERADMIN', 'MANAGER']:
-            raise ValidationError("Only managers and super admins can provide feedback")
+    # def clean(self):
+    #     if self.user.role not in ['SUPERADMIN', 'MANAGER']:
+    #         raise ValidationError("Only managers and super admins can provide feedback")
 
     def save(self, *args, **kwargs):
         self.full_clean()

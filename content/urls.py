@@ -1,17 +1,22 @@
 from django.urls import path
 from . import views
-
 from rest_framework_simplejwt.views import (
     TokenObtainPairView,
     TokenRefreshView,
 )
 
+from .views import CustomTokenObtainPairView
+
 
 urlpatterns = [
+    
     path('users/', views.UserViewSet.as_view({'get': 'list', 'post': 'create'})),
     path('auth/signup/', views.SignupView.as_view(), name='auth_signup'),
-    #path('auth/login/', views.LoginView.as_view(), name='auth_login'),
-    path('auth/login/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('auth/login/', views.LoginView.as_view(), name='auth_login'),
+    #path('auth/login/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
+    #path('auth/login/', CustomTokenObtainPairView.as_view(), name='auth_login'),
+    path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('auth/logout/', views.LogoutView.as_view(), name='auth_logout'),
     path('auth/profile/', views.ProfileView.as_view(), name='auth_profile'),
 
@@ -40,4 +45,16 @@ urlpatterns = [
         'get': 'list',
         'post': 'create'
     }), name='content-feedback'),
+    
+    #Task URLs
+    path('tasks/', views.TaskViewSet.as_view({
+        'get': 'list',
+        'post': 'create'
+    }), name='task-list'),
+    path('tasks/<int:pk>/', views.TaskViewSet.as_view({
+        'get': 'retrieve',
+        'put': 'update',
+        'patch': 'partial_update',
+        'delete': 'destroy'
+    }), name='task-detail'),
 ]
